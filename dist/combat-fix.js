@@ -17,3 +17,16 @@ StreetFight.prototype.update=function(dt){
   this.player.dir=this.cpu.x>=this.player.x?1:-1;
   this.cpu.dir=this.player.x>=this.cpu.x?1:-1;
 };
+
+// Isolated rendering path for the padded atlas. It does not depend on the old sheet processor.
+StreetFight.prototype.drawFighter=function(f){
+  const img=this.assets.states||this.assets[f.id+'Fallback'];
+  if(!img||!img.complete||!img.naturalWidth)return;
+  const ctx=this.ctx,atlas=img===this.assets.states,row={birrow:0,halfred:1,hector:2,cesar:3}[f.id]??0;
+  const cols=atlas?5:6,rows=atlas?4:4,cw=img.naturalWidth/cols,ch=img.naturalHeight/rows;
+  const col=atlas?(f.ko?3:f.win?4:f.state==='guard'?1:f.state==='hit'?2:f.attack?.type==='special'?4:0):0;
+  const pad=atlas?18:12,sw=cw-pad*2,sh=ch-pad*2,w=cw*1.2,h=ch*1.2;
+  ctx.save();ctx.translate(f.x,f.y);if(f.dir<0)ctx.scale(-1,1);if(f.state==='crouch'||f.state==='guard')ctx.scale(1,.88);
+  ctx.drawImage(img,col*cw+pad,row*ch+pad,sw,sh,-w/2,-h,w,h);
+  ctx.restore();
+};
