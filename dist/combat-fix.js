@@ -24,9 +24,13 @@ StreetFight.prototype.drawFighter=function(f){
   if(!img||!img.complete||!img.naturalWidth)return;
   const ctx=this.ctx,atlas=img===this.assets.states,row={birrow:0,halfred:1,hector:2,cesar:3}[f.id]??0;
   const cols=atlas?5:6,rows=atlas?4:4,cw=img.naturalWidth/cols,ch=img.naturalHeight/rows;
-  const col=atlas?(f.ko?3:f.win?4:f.state==='guard'?1:f.state==='hit'?2:f.attack?.type==='special'?4:0):0;
+  const phase=Math.floor(f.clock*7)%2;
+  const col=atlas?(f.ko?3:f.win?4:f.state==='guard'?1:f.state==='hit'?2:f.attack?(f.attack.type==='special'?4:(f.attack.t<f.attack.duration*.42?0:2)):f.state==='walk'?phase:0):0;
   const pad=atlas?18:12,sw=cw-pad*2,sh=ch-pad*2,w=cw*1.2,h=ch*1.2;
-  ctx.save();ctx.translate(f.x,f.y);if(f.dir<0)ctx.scale(-1,1);if(f.state==='crouch'||f.state==='guard')ctx.scale(1,.88);
+  const walk=f.state==='walk'?Math.sin(f.clock*14)*5:0;
+  const lunge=f.attack?Math.sin(Math.min(1,f.attack.t/f.attack.duration)*Math.PI)*30:0;
+  const idle=Math.sin(f.clock*4)*2;
+  ctx.save();ctx.translate(f.x+f.dir*lunge,f.y+walk+idle);if(f.dir<0)ctx.scale(-1,1);if(f.state==='crouch'||f.state==='guard')ctx.scale(1,.88);
   ctx.drawImage(img,col*cw+pad,row*ch+pad,sw,sh,-w/2,-h,w,h);
   ctx.restore();
 };
