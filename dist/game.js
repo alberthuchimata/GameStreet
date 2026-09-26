@@ -72,7 +72,7 @@ const Audio2 = {
   },
   file(name, vol = 0.7) {
     if (this.muted) return;
-    const base = this.files[name] || (this.files[name] = new Audio(`assets/audio/${name}.mp3`));
+    const base = this.files[name] || (this.files[name] = new Audio(`audio/${name}.mp3`));
     const a = base.cloneNode(); a.volume = vol; a.play().catch(() => { });
   },
   toggleMute() { this.muted = !this.muted; if (this.master) this.master.gain.value = this.muted ? 0 : 0.9; },
@@ -999,11 +999,11 @@ function loop(t) {
 let loadProgress = 0;
 (async function boot() {
   requestAnimationFrame(loop);
-  const list = [['studio', 'assets/ui/studio.webp'], ['title', 'assets/ui/title.webp'], ['logo', 'assets/ui/logo.webp'], ['select', 'assets/ui/select.webp']];
+  const list = [['studio', 'ui/studio.webp'], ['title', 'ui/title.webp'], ['logo', 'ui/logo.webp'], ['select', 'ui/select.webp']];
   for (const r of ROSTER) {
-    list.push(['c_' + r.id, `assets/chars/${r.id}.webp`], ['pv_' + r.id, `assets/portraits/${r.id}_victory.webp`], ['pd_' + r.id, `assets/portraits/${r.id}_defeat.webp`]);
+    list.push(['c_' + r.id, `chars/${r.id}.webp`], ['pv_' + r.id, `portraits/${r.id}_victory.webp`], ['pd_' + r.id, `portraits/${r.id}_defeat.webp`]);
   }
-  for (const k of Object.keys(STAGES)) list.push(['s_' + k, `assets/stages/${k}.webp`]);
+  for (const k of Object.keys(STAGES)) list.push(['s_' + k, `stages/${k}.webp`]);
   let done = 0;
   await Promise.all(list.map(([k, s]) => loadImg(k, s).then(() => { done++; loadProgress = done / list.length; })));
   try { await Promise.all([document.fonts.load('40px Bungee'), document.fonts.load('600 15px "Chakra Petch"')]); } catch (e) { }
