@@ -1,7 +1,0 @@
-COMO ABRIR O JOGO
-
-1. Extraia todo o arquivo ZIP.
-2. Dê dois cliques em ABRIR-JOGO.bat.
-3. O jogo abre automaticamente no navegador em http://127.0.0.1:8787.
-
-Deixe a janela preta aberta enquanto estiver jogando. Para fechar o jogo local, feche essa janela.
