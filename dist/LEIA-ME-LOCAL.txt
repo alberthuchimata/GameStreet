@@ -1,0 +1,6 @@
+MIAMI FIGHTER
+Abrir: duplo clique em index.html (Chrome/Edge) ou ABRIR-JOGO.bat.
+Controles: A/D andar e bloquear, S agachar, W pular, Insert soco medio, Home soco forte,
+PgUp agarrao, Delete chute medio, End chute forte, PgDn especial (POWER cheia),
+Enter confirmar/pausa, Esc voltar, F2 reiniciar round, M som liga/desliga.
+Teclado sem Insert/Home: J, U, L, K, I, O.

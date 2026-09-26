@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Miami Fighter</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%A5%8A%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Chakra+Petch:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+  *,*::before,*::after{box-sizing:inherit}
+  html,body{height:100%;margin:0;background:#000;overflow:hidden}
+  body{display:grid;place-items:center}
+  canvas{display:block;width:min(100vw,calc(100vh * 16 / 9));height:auto;aspect-ratio:16/9;background:#000;image-rendering:auto;cursor:pointer}
+</style>
+</head>
+<body>
+<canvas id="game" width="1280" height="720" aria-label="Miami Fighter"></canvas>
+<script src="assets/data.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
