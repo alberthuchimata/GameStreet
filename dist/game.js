@@ -292,8 +292,22 @@ const KEYMAP = {
   KeyJ: 'mp', KeyU: 'hp', KeyL: 'grab', KeyK: 'mk', KeyI: 'hk', KeyO: 'sp'
 };
 const BUTTONS = ['mp', 'hp', 'mk', 'hk', 'grab', 'sp'];
+/* ---------- Toque (celular) ---------- */
+const TOUCH = /[?&]touch=1/.test(location.search) || (matchMedia('(pointer: coarse)').matches && ('ontouchstart' in window || navigator.maxTouchPoints > 0));
+const IS_IOS = /iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1 && !document.documentElement.requestFullscreen);
+const touchDir = { l: false, r: false, u: false, d: false };
+const STICK_HOME = { x: 190, y: 540 }, STICK_R = 118;
+const stick = { id: null, bx: STICK_HOME.x, by: STICK_HOME.y, kx: 0, ky: 0 };
+const TBTN = [
+  { b: 'mp', img: 'mp', x: 900, y: 520, r: 58 }, { b: 'hp', img: 'hp', x: 1025, y: 480, r: 58 },
+  { b: 'mk', img: 'mk', x: 930, y: 650, r: 58 }, { b: 'hk', img: 'hk', x: 1055, y: 610, r: 58 },
+  { b: 'grab', img: 'grab', x: 790, y: 620, r: 52 }, { b: 'sp', img: 'special', x: 1180, y: 540, r: 70 }
+];
+const tPressed = {};
+const PAUSE_BTN = { x: 598, y: 120, s: 58 }, FS_FIGHT = { x: 682, y: 120, s: 58 }, FS_MENU = { x: 1228, y: 52, s: 60 };
+let iosHint = 0;
 function playerInput() {
-  const inp = { l: keys.has('l'), r: keys.has('r'), d: keys.has('d'), u: keys.has('u'), press: [] };
+  const inp = { l: keys.has('l') || touchDir.l, r: keys.has('r') || touchDir.r, d: keys.has('d') || touchDir.d, u: keys.has('u') || touchDir.u, press: [] };
   while (pressQueue.length) inp.press.push(pressQueue.shift());
   return inp;
 }
@@ -627,9 +641,10 @@ function heavyText(t, x, y, size, fill, align = 'center', shadow = '#ff3fa4') {
 }
 function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); }
 function drawSprite(ch, anim, idx, x, y, dir, alpha = 1) {
+  const img = IMG['c_' + ch]; if (!img) return;
   const g = geom(ch, anim, idx), [ax, ay, aw, ah, sx, sy, sw, sh] = g.fr;
   ctx.save(); ctx.globalAlpha = alpha; ctx.translate(x, 0); ctx.scale(dir, 1);
-  ctx.drawImage(IMG['c_' + ch], ax, ay, aw, ah, (sx - 256) * DS * g.k, y + (sy - 700) * DS * g.k + g.off, sw * DS * g.k, sh * DS * g.k);
+  ctx.drawImage(img, ax, ay, aw, ah, (sx - 256) * DS * g.k, y + (sy - 700) * DS * g.k + g.off, sw * DS * g.k, sh * DS * g.k);
   ctx.restore();
 }
 function drawPortrait(key, x, y, w, h, mirror = false, contain = false) {
@@ -682,12 +697,12 @@ function drawHud() {
       ctx.beginPath(); ctx.arc(cx, y + bh + 22, 8, 0, Math.PI * 2);
       ctx.fillStyle = fight.wins[f.i] > r ? '#ffd23f' : '#1d2350'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#140a2e'; ctx.stroke();
     }
-    const px = left ? 50 : W - 350, py = H - 34;
+    const px = left ? 50 : W - 350, py = TOUCH ? 122 : H - 34;
     ctx.fillStyle = '#140a2e'; ctx.fillRect(px - 3, py - 3, 306, 18);
     ctx.fillStyle = '#1d2350'; ctx.fillRect(px, py, 300, 12);
     ctx.fillStyle = f.power >= 100 ? (simFrame % 20 < 10 ? '#ff4df3' : '#7ff6ff') : '#4f8dff';
     const pw = 3 * f.power; ctx.fillRect(left ? px : px + 300 - pw, py, pw, 12);
-    outlined(f.power >= 100 ? (left ? 'POWER MAX · PgDn' : 'POWER MAX') : 'POWER', left ? px : px + 300, py - 12, 13, f.power >= 100 ? '#ffd23f' : '#cfe0ff', left ? 'left' : 'right');
+    outlined(f.power >= 100 ? (left && !TOUCH ? 'POWER MAX · PgDn' : 'POWER MAX') : 'POWER', left ? px : px + 300, py - 12, 13, f.power >= 100 ? '#ffd23f' : '#cfe0ff', left ? 'left' : 'right');
     if (f.combo >= 2 && f.comboT > 0) {
       const cx = f.other.i === 0 ? 70 : W - 70, al = f.other.i === 0 ? 'left' : 'right';
       outlined(f.combo + ' HITS', cx, 170, 34, '#ffd23f', al);
@@ -719,12 +734,100 @@ function renderFight() {
   }
   ctx.restore();
   drawHud();
+  if (TOUCH) drawTouchControls();
+  drawSquareBtn(fsIcon(), FS_FIGHT);
+  if (TOUCH) drawSquareBtn('pause', PAUSE_BTN);
   if (fight.paused) {
-    ctx.fillStyle = 'rgba(5,8,26,.62)'; ctx.fillRect(0, 0, W, H);
-    outlined('PAUSED', W / 2, H / 2 - 40, 70, '#ffffff');
-    outlined('ENTER · RESUME      ESC · QUIT TO SELECT', W / 2, H / 2 + 30, 20, '#6ff3ff');
-    outlined('M · SOUND ' + (Audio2.muted ? 'OFF' : 'ON') + '      F2 · RESTART ROUND', W / 2, H / 2 + 66, 16, '#cfe0ff');
+    ctx.fillStyle = 'rgba(5,8,26,.7)'; ctx.fillRect(0, 0, W, H);
+    outlined('PAUSED', W / 2, 220, 70, '#ffffff');
+    for (const b of PAUSE_MENU) {
+      roundRect(b.x, b.y, b.w, b.h, 14); ctx.fillStyle = '#0b1231'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = b.c; ctx.stroke();
+      outlined(b.label, b.x + b.w / 2, b.y + b.h / 2, 26, b.c);
+    }
+    outlined(TOUCH ? 'TAP A BUTTON' : 'ENTER · RESUME   ESC · QUIT   F2 · RESTART   M · SOUND', W / 2, 600, 16, '#cfe0ff');
   }
+  if (TOUCH) drawRotateOverlay();
+}
+
+const PAUSE_MENU = [
+  { id: 'resume', label: 'RESUME', x: W / 2 - 170, y: 290, w: 340, h: 64, c: '#6ff3ff' },
+  { id: 'restart', label: 'RESTART ROUND', x: W / 2 - 170, y: 370, w: 340, h: 64, c: '#ffd23f' },
+  { id: 'sound', label: 'SOUND ON/OFF', x: W / 2 - 170, y: 450, w: 340, h: 64, c: '#cfe0ff' },
+  { id: 'quit', label: 'QUIT TO SELECT', x: W / 2 - 170, y: 530 - 0, w: 340, h: 0, c: '#ff4df3' }
+];
+PAUSE_MENU[3].y = 530; PAUSE_MENU[3].h = 64;
+PAUSE_MENU.forEach((b, i) => { b.y = 270 + i * 76; });
+function isFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement) || matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches; }
+const fsIcon = () => (document.fullscreenElement || document.webkitFullscreenElement) ? 'fs_exit' : 'fs_enter';
+function toggleFullscreen() {
+  const d = document, el = d.documentElement;
+  if (d.fullscreenElement || d.webkitFullscreenElement) { (d.exitFullscreen || d.webkitExitFullscreen).call(d); return; }
+  const req = el.requestFullscreen || el.webkitRequestFullscreen;
+  if (!req) { iosHint = 360; return; }
+  Promise.resolve(req.call(el, { navigationUI: 'hide' })).then(() => { try { screen.orientation.lock('landscape').catch(() => { }); } catch (e) { } }).catch(() => { iosHint = 360; });
+}
+function drawSquareBtn(img, b, alpha = 0.9) {
+  const im = IMG['t_' + img]; if (!im) return;
+  ctx.save(); ctx.globalAlpha = alpha; ctx.drawImage(im, b.x - b.s / 2, b.y - b.s / 2, b.s, b.s); ctx.restore();
+}
+const inBtn = (x, y, b) => Math.abs(x - b.x) <= b.s / 2 + 8 && Math.abs(y - b.y) <= b.s / 2 + 8;
+function drawTouchControls() {
+  if (fight.paused) return;
+  const base = IMG.t_stick_base, knob = IMG.t_stick_knob;
+  ctx.save(); ctx.globalAlpha = stick.id !== null ? 0.9 : 0.62;
+  if (base) ctx.drawImage(base, stick.bx - STICK_R, stick.by - STICK_R, STICK_R * 2, STICK_R * 2);
+  if (knob) ctx.drawImage(knob, stick.bx + stick.kx - 52, stick.by + stick.ky - 52, 104, 104);
+  ctx.restore();
+  for (const t of TBTN) {
+    const p = tPressed[t.b] > 0, r = t.r * (p ? 0.9 : 1), im = IMG['t_' + t.img];
+    ctx.save(); ctx.globalAlpha = p ? 1 : 0.72;
+    if (t.b === 'sp' && F[0] && F[0].power >= 100) { ctx.shadowColor = '#ffd23f'; ctx.shadowBlur = 20 + Math.sin(simFrame / 5) * 10; ctx.globalAlpha = 1; }
+    if (t.b === 'sp' && F[0] && F[0].power < 100) ctx.globalAlpha = 0.4;
+    if (im) ctx.drawImage(im, t.x - r, t.y - r, r * 2, r * 2);
+    ctx.restore();
+    if (tPressed[t.b] > 0) tPressed[t.b]--;
+  }
+}
+function drawRotateOverlay() {
+  if (innerHeight <= innerWidth) return;
+  ctx.fillStyle = 'rgba(3,5,20,.94)'; ctx.fillRect(0, 0, W, H);
+  const im = IMG.t_rotate; if (im) ctx.drawImage(im, W / 2 - 210, 170, 420, 311);
+  outlined('ROTATE YOUR PHONE', W / 2, 560, 54, '#ffd23f');
+}
+function drawIosHint() {
+  if (iosHint <= 0) return; iosHint--;
+  roundRect(W / 2 - 430, 20, 860, 96, 16); ctx.fillStyle = 'rgba(3,6,30,.95)'; ctx.fill(); ctx.strokeStyle = '#46e8ff'; ctx.lineWidth = 3; ctx.stroke();
+  outlined('iPHONE: TAP SHARE  →  "ADD TO HOME SCREEN"', W / 2, 52, 24, '#ffd23f');
+  outlined('Open Miami Fighter from the home screen to play in full screen', W / 2, 90, 16, '#ffffff');
+}
+function stickUpdate(x, y) {
+  let dx = x - stick.bx, dy = y - stick.by; const d = Math.hypot(dx, dy), max = STICK_R * 0.62;
+  if (d > max) { dx *= max / d; dy *= max / d; }
+  stick.kx = dx; stick.ky = dy;
+  const nx = dx / max, ny = dy / max;
+  touchDir.l = nx < -0.38; touchDir.r = nx > 0.38; touchDir.u = ny < -0.55; touchDir.d = ny > 0.5;
+}
+function stickRelease() { stick.id = null; stick.kx = stick.ky = 0; stick.bx = STICK_HOME.x; stick.by = STICK_HOME.y; touchDir.l = touchDir.r = touchDir.u = touchDir.d = false; }
+function fightPointer(id, x, y) {
+  if (fight.paused) {
+    for (const b of PAUSE_MENU) if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) { pauseAction(b.id); return; }
+    return;
+  }
+  if (TOUCH && inBtn(x, y, PAUSE_BTN)) { pauseAction('toggle'); return; }
+  if (!TOUCH) return;
+  let best = null, bd = 1e9;
+  for (const t of TBTN) { const d = Math.hypot(x - t.x, y - t.y); if (d <= t.r * 1.25 && d < bd) { bd = d; best = t; } }
+  if (best) { pressQueue.push(best.b); tPressed[best.b] = 8; return; }
+  if (x < W * 0.45 && stick.id === null) {
+    stick.id = id; stick.bx = Math.max(140, Math.min(420, x)); stick.by = Math.max(400, Math.min(600, y)); stickUpdate(x, y);
+  }
+}
+function pauseAction(a) {
+  if (a === 'toggle') { fight.paused = !fight.paused; keys.clear(); stickRelease(); Audio2.sfx(fight.paused ? 'back' : 'move'); return; }
+  if (a === 'resume') { fight.paused = false; Audio2.sfx('move'); return; }
+  if (a === 'restart') { fight.paused = false; resetRound(); return; }
+  if (a === 'sound') { Audio2.init(); Audio2.toggleMute(); return; }
+  if (a === 'quit') { fight.paused = false; sel.step = 1; sel.cursor = sel.player; sel.player = null; Scene.go('select'); }
 }
 
 /* =========================================================
@@ -747,6 +850,9 @@ const Scene = {
   },
   draw() {
     const S = SCENES[this.cur]; S.draw();
+    if (!['fight', 'loading', 'studio'].includes(this.cur)) drawSquareBtn(fsIcon(), FS_MENU, 0.85);
+    drawIosHint();
+    if (TOUCH && this.cur !== 'fight') drawRotateOverlay();
     if (this.fade > 0) { ctx.fillStyle = `rgba(0,0,0,${this.fade})`; ctx.fillRect(0, 0, W, H); }
   },
   key(code) { if (this.fadeDir === 1) return; const S = SCENES[this.cur]; if (S.key) S.key(code); }
@@ -866,6 +972,7 @@ const SCENES = {
     },
     click(x, y) {
       const sx = x / SEL_SCALE, sy = y / SEL_SCALE;
+      if (sy > 990 && sx < 260) { this.key('Escape'); return; }
       for (let i = 0; i < ROSTER.length; i++) {
         const c = CARD(i);
         if (sx >= c.x && sx <= c.x + c.w && sy >= c.y && sy <= c.y + c.h) {
@@ -876,8 +983,8 @@ const SCENES = {
     }
   },
   vs: {
-    enter() { Audio2.file('jingle', 0.6); Music.play(null); },
-    update() { if (Scene.t === 200) this.key('Enter'); },
+    enter() { Audio2.file('jingle', 0.6); Music.play(null); this.ready = false; ensureChars([ROSTER[sel.player].id, ROSTER[sel.cpu].id]).then(() => { this.ready = true; }); },
+    update() { if (Scene.t >= 200 && this.ready && Scene.fadeDir === 0) this.key('Enter'); },
     draw() {
       const p = ROSTER[sel.player], c = ROSTER[sel.cpu], t = Scene.t;
       ctx.drawImage(IMG['s_' + c.stage], 0, 0, W, H);
@@ -894,7 +1001,7 @@ const SCENES = {
       outlined('STAGE · ' + STAGES[c.stage].name, W / 2, 60, 22, '#ffffff');
     },
     key(c) {
-      if (isConfirm(c) && Scene.t > 30) { startFight(ROSTER[sel.player].id, ROSTER[sel.cpu].id); Scene.go('fight'); }
+      if (isConfirm(c) && Scene.t > 30 && this.ready) { startFight(ROSTER[sel.player].id, ROSTER[sel.cpu].id); Scene.go('fight'); }
     }
   },
   fight: {
@@ -905,7 +1012,7 @@ const SCENES = {
     },
     draw: renderFight,
     key(c) {
-      if (c === 'Enter') { fight.paused = !fight.paused; keys.clear(); Audio2.sfx(fight.paused ? 'back' : 'move'); return; }
+      if (c === 'Enter') { pauseAction('toggle'); return; }
       if (c === 'Escape' && fight.paused) { fight.paused = false; sel.step = 1; sel.cursor = sel.player; sel.player = null; Scene.go('select'); return; }
       if (c === 'F2') { fight.paused = false; resetRound(); return; }
       if (c === 'F1') { showBoxes = !showBoxes; return; }
@@ -978,12 +1085,23 @@ addEventListener('keydown', e => {
 });
 addEventListener('keyup', e => { const b = KEYMAP[e.code]; if (b) keys.delete(b); });
 addEventListener('blur', () => keys.clear());
+function toCanvas(e) { const r = canvas.getBoundingClientRect(); return [(e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height]; }
 canvas.addEventListener('pointerdown', e => {
-  Audio2.init();
-  const r = canvas.getBoundingClientRect(), x = (e.clientX - r.left) * W / r.width, y = (e.clientY - r.top) * H / r.height;
+  e.preventDefault(); Audio2.init();
+  try { canvas.setPointerCapture(e.pointerId); } catch (err) { }
+  const [x, y] = toCanvas(e);
+  if (Scene.cur === 'fight') {
+    if (inBtn(x, y, FS_FIGHT)) { toggleFullscreen(); return; }
+    fightPointer(e.pointerId, x, y); return;
+  }
+  if (!['loading', 'studio'].includes(Scene.cur) && inBtn(x, y, FS_MENU)) { toggleFullscreen(); return; }
   const S = SCENES[Scene.cur];
   if (S.click) S.click(x, y); else Scene.key('Enter');
 });
+canvas.addEventListener('pointermove', e => { if (e.pointerId === stick.id) { const [x, y] = toCanvas(e); stickUpdate(x, y); } });
+const endPtr = e => { if (e.pointerId === stick.id) stickRelease(); };
+canvas.addEventListener('pointerup', endPtr); canvas.addEventListener('pointercancel', endPtr);
+canvas.addEventListener('contextmenu', e => e.preventDefault());
 
 /* ---------- Loop ---------- */
 let acc = 0, lastT = 0;
@@ -997,15 +1115,23 @@ function loop(t) {
   requestAnimationFrame(loop);
 }
 
+/* ---------- Sprites sob demanda (economiza memória no celular) ---------- */
+const charLoads = {};
+function ensureChars(ids) {
+  for (const k of Object.keys(IMG)) if (k.startsWith('c_') && !ids.includes(k.slice(2))) { delete IMG[k]; delete charLoads[k.slice(2)]; }
+  return Promise.all(ids.map(id => charLoads[id] || (charLoads[id] = loadImg('c_' + id, `chars/${id}.webp`))));
+}
+
 /* ---------- Boot ---------- */
 let loadProgress = 0;
 (async function boot() {
   requestAnimationFrame(loop);
   const list = [['studio', 'ui/studio.webp'], ['title', 'ui/title.webp'], ['logo', 'ui/logo.webp'], ['select', 'ui/select.webp']];
   for (const r of ROSTER) {
-    list.push(['c_' + r.id, `chars/${r.id}.webp`], ['pv_' + r.id, `portraits/${r.id}_victory.webp`], ['pd_' + r.id, `portraits/${r.id}_defeat.webp`]);
+    list.push(['pv_' + r.id, `portraits/${r.id}_victory.webp`], ['pd_' + r.id, `portraits/${r.id}_defeat.webp`]);
   }
   for (const k of Object.keys(STAGES)) list.push(['s_' + k, `stages/${k}.webp`]);
+  for (const t of ['stick_base', 'stick_knob', 'mp', 'hp', 'mk', 'hk', 'grab', 'special', 'pause', 'fs_enter', 'fs_exit', 'rotate']) list.push(['t_' + t, `ui/touch/${t}.webp`]);
   let done = 0;
   await Promise.all(list.map(([k, s]) => loadImg(k, s).then(() => { done++; loadProgress = done / list.length; })));
   try { await Promise.all([document.fonts.load('40px Bungee'), document.fonts.load('600 15px "Chakra Petch"')]); } catch (e) { }
