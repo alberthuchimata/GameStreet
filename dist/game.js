@@ -696,7 +696,9 @@ function drawHud() {
   outlined(String(fight.timer).padStart(2, '0'), W / 2, y + 16, 50, '#ffd23f');
   outlined(STAGES[fight.stage].name, W / 2, y + 52, 12, '#cfe0ff');
   if (msg.t > 0 && msg.text) {
-    const k = msg.total - msg.t, s = msg.big ? 84 : 44, sc = k < 6 ? 1.4 - k * 0.066 : 1;
+    const k = msg.total - msg.t, s = msg.big ? 84 : 44;
+    ctx.font = `${s}px Bungee, Impact, "Arial Black", sans-serif`;
+    const fit = Math.min(1, (W - 120) / ctx.measureText(msg.text).width), sc = (k < 6 ? 1.4 - k * 0.066 : 1) * fit;
     ctx.save(); ctx.translate(W / 2, msg.big ? H * 0.42 : H * 0.3); ctx.scale(sc, sc);
     outlined(msg.text, 0, 0, s, msg.big ? '#ffd23f' : '#7ff6ff'); ctx.restore();
   }
