@@ -17,11 +17,13 @@ const ROSTER = [
   { id: 'cesar', name: 'CESAR', style: 'REACH · HARMONY', stage: 'coconut_grove', special: 'HARMONY WAVE' },
   { id: 'galego', name: 'EL GALEGO', style: 'RUMBA · PRESSURE', stage: 'havana', special: 'RUMBA STORM' },
   { id: 'alberth', name: 'ALBERTH BJJ', style: 'JIU-JITSU · THROWS', stage: 'brickell', special: 'NEON UCHIMATA', kd: 'thrown_forward' },
-  { id: 'matheus', name: 'MATHEUS BR', style: 'STRIKES · REVIVAL', stage: 'port_miami', special: 'HARBOR REVIVAL', height: 1.06 }
+  { id: 'matheus', name: 'MATHEUS BR', style: 'STRIKES · REVIVAL', stage: 'port_miami', special: 'HARBOR REVIVAL', height: 1.06 },
+  { id: 'efim', name: 'EFIM CONRAD', style: 'ROCK · RED RIFF', stage: 'miami_beach', special: 'RED RIFF' }
 ];
 const RB = Object.fromEntries(ROSTER.map(r => [r.id, r]));
 const STAGES = {
-  ocean_drive: { name: 'OCEAN DRIVE', tag: 'OCEAN DRIVE', floor: 646, dot: [1132, 333] },
+  ocean_drive: { name: 'OCEAN DRIVE', tag: 'OCEAN DRIVE', floor: 646, dot: [1018, 284] },
+  miami_beach: { name: 'MIAMI BEACH', tag: 'MIAMI BEACH', floor: 652, dot: [1132, 331] },
   coral_gables: { name: 'CORAL GABLES', tag: 'CORAL GABLES', floor: 652, dot: [824, 445] },
   coral_way: { name: 'CORAL WAY', tag: 'CORAL WAY', floor: 640, dot: [865, 305] },
   coconut_grove: { name: 'COCONUT GROVE', tag: 'COCONUT GROVE', floor: 652, dot: [908, 396] },
@@ -29,7 +31,6 @@ const STAGES = {
   brickell: { name: 'BRICKELL ROOFTOP', tag: 'BRICKELL', floor: 632, dot: [738, 283] },
   port_miami: { name: 'PORT OF MIAMI', tag: 'PORT OF MIAMI', floor: 652, dot: [1065, 412] }
 };
-const LOCKED_DOT = [1018, 284];
 const AIR_ANIMS = new Set(['jump_vertical', 'jump_diagonal_forward', 'jump_diagonal_backward', 'jump_attack_medium', 'jump_attack_strong']);
 const FALLBACK = { crouch_kick_strong_sweep: 'crouch_kick_medium', throw_back_counter: 'throw_front', crouch_hold: 'crouch_block_low' };
 
@@ -735,7 +736,7 @@ function renderFight() {
   ctx.restore();
   drawHud();
   if (TOUCH) drawTouchControls();
-  drawSquareBtn(fsIcon(), FS_FIGHT);
+  if (!isStandalone()) drawSquareBtn(fsIcon(), FS_FIGHT);
   if (TOUCH) drawSquareBtn('pause', PAUSE_BTN);
   if (fight.paused) {
     ctx.fillStyle = 'rgba(5,8,26,.7)'; ctx.fillRect(0, 0, W, H);
@@ -759,12 +760,20 @@ PAUSE_MENU[3].y = 530; PAUSE_MENU[3].h = 64;
 PAUSE_MENU.forEach((b, i) => { b.y = 270 + i * 76; });
 function isFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement) || matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches; }
 const fsIcon = () => (document.fullscreenElement || document.webkitFullscreenElement) ? 'fs_exit' : 'fs_enter';
+const isFullscreenNow = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+const isStandalone = () => matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || navigator.standalone === true;
+function enterFullscreen(silent) {
+  const el = document.documentElement, req = el.requestFullscreen || el.webkitRequestFullscreen;
+  if (!req) { if (!silent) iosHint = 360; return; }
+  try {
+    const p = req.call(el, { navigationUI: 'hide' });
+    Promise.resolve(p).then(() => { try { screen.orientation.lock('landscape').catch(() => { }); } catch (e) { } }).catch(() => { if (!silent) iosHint = 360; });
+  } catch (e) { if (!silent) iosHint = 360; }
+}
 function toggleFullscreen() {
-  const d = document, el = d.documentElement;
-  if (d.fullscreenElement || d.webkitFullscreenElement) { (d.exitFullscreen || d.webkitExitFullscreen).call(d); return; }
-  const req = el.requestFullscreen || el.webkitRequestFullscreen;
-  if (!req) { iosHint = 360; return; }
-  Promise.resolve(req.call(el, { navigationUI: 'hide' })).then(() => { try { screen.orientation.lock('landscape').catch(() => { }); } catch (e) { } }).catch(() => { iosHint = 360; });
+  const d = document;
+  if (isFullscreenNow()) { (d.exitFullscreen || d.webkitExitFullscreen).call(d); return; }
+  enterFullscreen(false);
 }
 function drawSquareBtn(img, b, alpha = 0.9) {
   const im = IMG['t_' + img]; if (!im) return;
@@ -827,7 +836,7 @@ function pauseAction(a) {
   if (a === 'resume') { fight.paused = false; Audio2.sfx('move'); return; }
   if (a === 'restart') { fight.paused = false; resetRound(); return; }
   if (a === 'sound') { Audio2.init(); Audio2.toggleMute(); return; }
-  if (a === 'quit') { fight.paused = false; sel.step = 1; sel.cursor = sel.player; sel.player = null; Scene.go('select'); }
+  if (a === 'quit') { fight.paused = false; sel.cursor = sel.player; Scene.go('select'); }
 }
 
 /* =========================================================
@@ -850,7 +859,7 @@ const Scene = {
   },
   draw() {
     const S = SCENES[this.cur]; S.draw();
-    if (!['fight', 'loading', 'studio'].includes(this.cur)) drawSquareBtn(fsIcon(), FS_MENU, 0.85);
+    if (!isStandalone() && !['fight', 'loading', 'studio', 'continue', 'ending'].includes(this.cur)) drawSquareBtn(fsIcon(), FS_MENU, 0.85);
     drawIosHint();
     if (TOUCH && this.cur !== 'fight') drawRotateOverlay();
     if (this.fade > 0) { ctx.fillStyle = `rgba(0,0,0,${this.fade})`; ctx.fillRect(0, 0, W, H); }
@@ -858,6 +867,13 @@ const Scene = {
   key(code) { if (this.fadeDir === 1) return; const S = SCENES[this.cur]; if (S.key) S.key(code); }
 };
 const sel = { step: 1, cursor: 0, player: null, cpu: null };
+/* Modo arcade: a CPU escolhe os adversários em ordem aleatória, sem repetir */
+const arcade = { order: [], idx: 0 };
+function startArcade() {
+  const o = ROSTER.map((r, i) => i).filter(i => i !== sel.player);
+  for (let i = o.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [o[i], o[j]] = [o[j], o[i]]; }
+  arcade.order = o; arcade.idx = 0; sel.cpu = o[0];
+}
 const isConfirm = c => c === 'Enter' || c === 'Space' || c === 'NumpadEnter';
 const isLeft = c => c === 'ArrowLeft' || c === 'KeyA';
 const isRight = c => c === 'ArrowRight' || c === 'KeyD';
@@ -903,13 +919,12 @@ const SCENES = {
       ctx.save(); ctx.scale(SEL_SCALE, SEL_SCALE);
       // título
       ctx.fillStyle = '#03082a'; ctx.fillRect(520, 8, 900, 78);
-      heavyText(sel.step === 1 ? '1/2  ·  CHOOSE YOUR FIGHTER' : '2/2  ·  CHOOSE YOUR OPPONENT', 960, 48, 46, '#ffd23f');
+      heavyText('CHOOSE YOUR FIGHTER', 960, 48, 46, '#ffd23f');
       // fighter focado
       const fr = ROSTER[sel.cursor], st = STAGES[fr.stage];
       // pontos do mapa
       const pulse = 1 + Math.sin(Scene.t / 8) * 0.18;
       const dots = Object.entries(STAGES).map(([k, s]) => [k, s.dot]);
-      dots.push(['locked', LOCKED_DOT]);
       for (const [k, [x, y]] of dots) {
         ctx.beginPath(); ctx.arc(x, y, 16, 0, Math.PI * 2); ctx.fillStyle = '#141a45'; ctx.fill();
         ctx.lineWidth = 3; ctx.strokeStyle = '#ffffff'; ctx.stroke();
@@ -934,13 +949,12 @@ const SCENES = {
         ctx.save(); roundRect(c.x, c.y, c.w, c.h, 10); ctx.fillStyle = '#060a28'; ctx.fill(); ctx.clip();
         const g = ctx.createLinearGradient(0, c.y, 0, c.y + 150); g.addColorStop(0, '#1b2266'); g.addColorStop(1, '#070b2e');
         ctx.fillStyle = g; ctx.fillRect(c.x, c.y, c.w, 152);
-        drawPortrait('pv_' + r.id, c.x, c.y, c.w, 150);
+        drawPortrait('card_' + r.id, c.x + 8, c.y + 6, c.w - 16, 144, false, true);
         ctx.fillStyle = '#050926'; ctx.fillRect(c.x, c.y + 150, c.w, 50);
-        if (sel.step === 2 && isP) { ctx.fillStyle = 'rgba(5,8,30,.45)'; ctx.fillRect(c.x, c.y, c.w, c.h); }
         ctx.restore();
         heavyText(r.name, c.x + c.w / 2, c.y + 176, r.name.length > 9 ? 19 : 23, '#ffd23f', 'center', null);
         roundRect(c.x, c.y, c.w, c.h, 10);
-        const col = hover ? (sel.step === 1 ? '#6ff3ff' : '#ff4df3') : isP ? '#6ff3ff' : '#3553b5';
+        const col = hover ? '#6ff3ff' : '#3553b5';
         ctx.lineWidth = hover ? 5 : isP ? 4 : 2; ctx.strokeStyle = col;
         if (hover) { ctx.shadowColor = col; ctx.shadowBlur = 18; }
         ctx.stroke(); ctx.shadowBlur = 0;
@@ -948,27 +962,19 @@ const SCENES = {
           ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(c.x + dx, c.y); ctx.lineTo(c.x + dx + 62, c.y); ctx.lineTo(c.x + dx + 48, c.y + 30); ctx.lineTo(c.x + dx, c.y + 30); ctx.fill();
           ctx.font = '900 20px "Arial Black", sans-serif'; ctx.fillStyle = '#04172a'; ctx.textAlign = 'left'; ctx.fillText(lbl, c.x + dx + 8, c.y + 23);
         };
-        if (isP || (sel.step === 1 && hover)) tag('1P', '#6ff3ff', 0);
-        if (sel.step === 2 && hover) tag('CPU', '#ff4df3', isP ? 70 : 0);
+        if (hover) tag('1P', '#6ff3ff', 0);
       });
       // dica inferior
       ctx.fillStyle = '#03072b'; ctx.fillRect(1560, 1002, 340, 32);
       ctx.font = '800 17px "Arial Black", sans-serif'; ctx.textAlign = 'right'; ctx.fillStyle = '#ffd23f';
-      ctx.fillText(sel.step === 1 ? 'ENTER · CHOOSE OPPONENT' : 'ENTER · FIGHT!', 1882, 1024);
+      ctx.fillText('ENTER · FIGHT!', 1882, 1024);
       ctx.restore();
     },
     key(c) {
       if (isLeft(c) || isRight(c)) { sel.cursor = (sel.cursor + (isRight(c) ? 1 : -1) + ROSTER.length) % ROSTER.length; Audio2.sfx('move'); return; }
       if (c === 'ArrowUp' || c === 'ArrowDown') return;
-      if (isConfirm(c)) {
-        if (sel.step === 1) { sel.player = sel.cursor; sel.step = 2; sel.cursor = (sel.cursor + 1) % ROSTER.length; Audio2.file('confirm'); return; }
-        if (sel.cursor === sel.player) { Audio2.sfx('deny'); return; }
-        sel.cpu = sel.cursor; Audio2.file('confirm'); Scene.go('vs'); return;
-      }
-      if (c === 'Escape' || c === 'Backspace') {
-        Audio2.sfx('back');
-        if (sel.step === 2) { sel.step = 1; sel.cursor = sel.player; sel.player = null; } else Scene.go('title');
-      }
+      if (isConfirm(c)) { sel.player = sel.cursor; startArcade(); Audio2.file('confirm'); Scene.go('vs'); return; }
+      if (c === 'Escape' || c === 'Backspace') { Audio2.sfx('back'); Scene.go('title'); }
     },
     click(x, y) {
       const sx = x / SEL_SCALE, sy = y / SEL_SCALE;
@@ -998,7 +1004,7 @@ const SCENES = {
       outlined(c.name, W - 60, 640, 40, '#ff4df3', 'right');
       const vs = t < 20 ? 0 : Math.min(1, (t - 20) / 10), sc = 1 + (1 - vs) * 1.5;
       ctx.save(); ctx.globalAlpha = vs; ctx.translate(W / 2, 330); ctx.scale(sc, sc); outlined('VS', 0, 0, 150, '#ffd23f'); ctx.restore();
-      outlined('STAGE · ' + STAGES[c.stage].name, W / 2, 60, 22, '#ffffff');
+      outlined('FIGHT ' + (arcade.idx + 1) + ' / ' + arcade.order.length + '   ·   ' + STAGES[c.stage].name, W / 2, 60, 22, '#ffffff');
     },
     key(c) {
       if (isConfirm(c) && Scene.t > 30 && this.ready) { startFight(ROSTER[sel.player].id, ROSTER[sel.cpu].id); Scene.go('fight'); }
@@ -1013,7 +1019,7 @@ const SCENES = {
     draw: renderFight,
     key(c) {
       if (c === 'Enter') { pauseAction('toggle'); return; }
-      if (c === 'Escape' && fight.paused) { fight.paused = false; sel.step = 1; sel.cursor = sel.player; sel.player = null; Scene.go('select'); return; }
+      if (c === 'Escape' && fight.paused) { pauseAction('quit'); return; }
       if (c === 'F2') { fight.paused = false; resetRound(); return; }
       if (c === 'F1') { showBoxes = !showBoxes; return; }
       if (c === 'F6' && fight.paused) { stepOnce = true; return; }
@@ -1028,36 +1034,64 @@ const SCENES = {
       drawPortrait('pd_' + c.id, W - 470, 290, 420, 360, true, true);
       heavyText('YOU WIN!', W / 2, 110, 84, '#ffd23f');
       outlined(p.name + ' DEFEATS ' + c.name, W / 2, 190, 24, '#6ff3ff');
-      if (Scene.t % 60 < 42) outlined('PRESS ENTER · NEXT OPPONENT', W / 2, 670, 22, '#ffffff');
+      if (Scene.t % 60 < 42) outlined(arcade.idx + 1 >= arcade.order.length ? 'PRESS ENTER' : 'PRESS ENTER · NEXT FIGHT', W / 2, 670, 22, '#ffffff');
+      outlined('FIGHT ' + (arcade.idx + 1) + ' / ' + arcade.order.length + ' CLEARED', W / 2, 225, 18, '#ffd23f');
       outlined('ESC · TITLE', W / 2, 700, 13, '#cfe0ff');
     },
     key(c) {
-      if (isConfirm(c) && Scene.t > 40) { sel.step = 2; sel.cursor = (sel.cpu + 1) % ROSTER.length; if (sel.cursor === sel.player) sel.cursor = (sel.cursor + 1) % ROSTER.length; Audio2.file('confirm'); Scene.go('select'); }
+      if (isConfirm(c) && Scene.t > 40) { Audio2.file('confirm'); arcade.idx++; if (arcade.idx >= arcade.order.length) Scene.go('ending'); else { sel.cpu = arcade.order[arcade.idx]; Scene.go('vs'); } }
       if (c === 'Escape') Scene.go('title');
     }
   },
   continue: {
-    enter() { Music.play(null); this.count = 9; },
+    enter() {
+      Music.play(null); this.count = 9; this.saved = 0;
+      const id = ROSTER[sel.player].id;
+      for (const k of ['victory', 'defeat']) if (!IMG[`pb_${id}_${k}`]) loadImg(`pb_${id}_${k}`, `portraits/${id}_${k}_big.webp`);
+    },
     update() {
-      if (Scene.t % 60 === 59 && Scene.fadeDir === 0) { this.count--; Audio2.sfx('move'); if (this.count < 0) Scene.go('gameover'); }
+      if (this.saved) { this.saved++; if (this.saved === 55) Scene.go('vs'); return; }
+      if (Scene.t % 60 === 59 && Scene.fadeDir === 0) { this.count--; Audio2.sfx('move'); if (this.count < 0) { this.count = 0; Scene.go('gameover'); } }
     },
     draw() {
       const p = ROSTER[sel.player];
-      ctx.fillStyle = '#0a0628'; ctx.fillRect(0, 0, W, H);
-      const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#0b0730'); g.addColorStop(1, '#1a0b3e');
-      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-      ctx.strokeStyle = '#34d6f2'; ctx.lineWidth = 4; ctx.strokeRect(30, 30, W - 60, H - 60);
-      heavyText('CONTINUE?', W / 2, 115, 64, '#ffd23f', 'center', null);
-      heavyText(String(Math.max(0, this.count)), W / 2, 300, 150, '#ff4fb0', 'center', null);
-      drawPortrait('pv_' + p.id, 80, 300, 400, 330, false, true);
-      drawPortrait('pd_' + p.id, W - 480, 300, 400, 330, false, true);
-      ctx.font = '900 30px "Arial Black", sans-serif'; ctx.fillStyle = '#6ff3ff'; ctx.textAlign = 'center'; ctx.fillText(p.name, W / 2, 560);
-      if (Scene.t % 50 < 34) { ctx.fillStyle = '#ffffff'; ctx.fillText('PRESS START', W / 2, 630); }
+      ctx.drawImage(IMG.continue, 0, 0, W, H);
+      const key = `pb_${p.id}_${this.saved ? 'victory' : 'defeat'}`;
+      drawPortrait(IMG[key] ? key : 'pd_' + p.id, -10, 30, 720, 690, false, true);
+      // número em neon com reflexo, no lugar do "01" da arte
+      const txt = String(Math.max(0, this.count)).padStart(2, '0'), cx = 1027, cy = 436;
+      const neon = (y, flip, alpha) => {
+        ctx.save(); ctx.globalAlpha = alpha; ctx.translate(cx, y); if (flip) ctx.scale(1, -0.85);
+        ctx.font = '800 104px Montserrat, "Arial Rounded MT Bold", "Arial Black", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        const g = ctx.createLinearGradient(0, -45, 0, 45); g.addColorStop(0, '#7dffd6'); g.addColorStop(0.5, '#34d6ff'); g.addColorStop(1, '#3a7bff');
+        ctx.shadowColor = '#2ee6ff'; ctx.shadowBlur = flip ? 10 : 26; ctx.fillStyle = g; ctx.fillText(txt, 0, 0);
+        ctx.shadowBlur = 0; ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(210,255,255,.55)'; ctx.strokeText(txt, 0, 0);
+        ctx.restore();
+      };
+      neon(cy, false, 1);
+      neon(cy + 96, true, 0.28);
+      ctx.save(); ctx.globalAlpha = 0.35; ctx.fillStyle = '#05040f';
+      for (let y = cy + 60; y < cy + 140; y += 6) ctx.fillRect(cx - 90, y, 180, 2);
+      ctx.restore();
     },
     key(c) {
-      if (isConfirm(c) && Scene.t > 20) { Audio2.file('coin'); Scene.go('vs'); }
+      if (this.saved) return;
+      if (isConfirm(c) && Scene.t > 20) { Audio2.file('coin'); this.saved = 1; }
       if (c === 'Escape') Scene.go('gameover');
     }
+  },
+  ending: {
+    enter() { Music.play('win'); Audio2.file('jingle', 0.7); const id = ROSTER[sel.player].id; if (!IMG[`pb_${id}_victory`]) loadImg(`pb_${id}_victory`, `portraits/${id}_victory_big.webp`); },
+    draw() {
+      const p = ROSTER[sel.player];
+      ctx.drawImage(IMG.title, 0, 0, W, H); ctx.fillStyle = 'rgba(6,4,30,.6)'; ctx.fillRect(0, 0, W, H);
+      const key = `pb_${p.id}_victory`; drawPortrait(IMG[key] ? key : 'pv_' + p.id, -10, 30, 700, 690, false, true);
+      heavyText('CHAMPION!', 930, 250, 96, '#ffd23f');
+      outlined(p.name, 930, 350, 40, '#6ff3ff');
+      outlined('ALL ' + arcade.order.length + ' OPPONENTS DEFEATED', 930, 410, 20, '#ffffff');
+      if (Scene.t % 60 < 42) outlined(TOUCH ? 'TAP TO RETURN' : 'PRESS ENTER', 930, 600, 22, '#ffffff');
+    },
+    key(c) { if (isConfirm(c) && Scene.t > 60) Scene.go('title'); }
   },
   gameover: {
     update() { if (Scene.t === 180) Scene.go('title'); },
@@ -1086,21 +1120,37 @@ addEventListener('keydown', e => {
 addEventListener('keyup', e => { const b = KEYMAP[e.code]; if (b) keys.delete(b); });
 addEventListener('blur', () => keys.clear());
 function toCanvas(e) { const r = canvas.getBoundingClientRect(); return [(e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height]; }
+/* No celular, tela cheia e áudio só podem ser ativados ao SOLTAR o dedo (pointerup/touchend).
+   Por isso o botão de tela cheia é tratado no pointerup. */
+let fsPending = null;
+const fsVisible = () => !isStandalone();
 canvas.addEventListener('pointerdown', e => {
   e.preventDefault(); Audio2.init();
   try { canvas.setPointerCapture(e.pointerId); } catch (err) { }
   const [x, y] = toCanvas(e);
   if (Scene.cur === 'fight') {
-    if (inBtn(x, y, FS_FIGHT)) { toggleFullscreen(); return; }
+    if (fsVisible() && inBtn(x, y, FS_FIGHT)) { fsPending = e.pointerId; return; }
     fightPointer(e.pointerId, x, y); return;
   }
-  if (!['loading', 'studio'].includes(Scene.cur) && inBtn(x, y, FS_MENU)) { toggleFullscreen(); return; }
+  if (fsVisible() && !['loading', 'studio', 'continue', 'ending'].includes(Scene.cur) && inBtn(x, y, FS_MENU)) { fsPending = e.pointerId; return; }
+  if (TOUCH && Scene.cur === 'title' && !isFullscreenNow()) fsAuto = e.pointerId;
   const S = SCENES[Scene.cur];
   if (S.click) S.click(x, y); else Scene.key('Enter');
 });
+let fsAuto = null;
 canvas.addEventListener('pointermove', e => { if (e.pointerId === stick.id) { const [x, y] = toCanvas(e); stickUpdate(x, y); } });
-const endPtr = e => { if (e.pointerId === stick.id) stickRelease(); };
+const endPtr = e => {
+  if (e.pointerId === stick.id) stickRelease();
+  if (e.type === 'pointerup') {
+    Audio2.init();
+    if (fsPending === e.pointerId) toggleFullscreen();
+    else if (fsAuto === e.pointerId && document.documentElement.requestFullscreen) enterFullscreen(true);
+  }
+  if (fsPending === e.pointerId) fsPending = null;
+  if (fsAuto === e.pointerId) fsAuto = null;
+};
 canvas.addEventListener('pointerup', endPtr); canvas.addEventListener('pointercancel', endPtr);
+canvas.addEventListener('touchend', () => Audio2.init(), { passive: true });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 
 /* ---------- Loop ---------- */
@@ -1126,9 +1176,9 @@ function ensureChars(ids) {
 let loadProgress = 0;
 (async function boot() {
   requestAnimationFrame(loop);
-  const list = [['studio', 'ui/studio.webp'], ['title', 'ui/title.webp'], ['logo', 'ui/logo.webp'], ['select', 'ui/select.webp']];
+  const list = [['studio', 'ui/studio.webp'], ['title', 'ui/title.webp'], ['logo', 'ui/logo.webp'], ['select', 'ui/select.webp'], ['continue', 'ui/continue.webp']];
   for (const r of ROSTER) {
-    list.push(['pv_' + r.id, `portraits/${r.id}_victory.webp`], ['pd_' + r.id, `portraits/${r.id}_defeat.webp`]);
+    list.push(['pv_' + r.id, `portraits/${r.id}_victory.webp`], ['pd_' + r.id, `portraits/${r.id}_defeat.webp`], ['card_' + r.id, `cards/${r.id}.webp`]);
   }
   for (const k of Object.keys(STAGES)) list.push(['s_' + k, `stages/${k}.webp`]);
   for (const t of ['stick_base', 'stick_knob', 'mp', 'hp', 'mk', 'hk', 'grab', 'special', 'pause', 'fs_enter', 'fs_exit', 'rotate']) list.push(['t_' + t, `ui/touch/${t}.webp`]);
